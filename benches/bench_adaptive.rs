@@ -57,6 +57,48 @@ fn grow_by_insertion(b: &mut Bencher) {
 }
 
 #[bench]
+fn seq_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_capacity(1000);
+    b.iter(|| {
+        m.clear();
+        for i in 0..1000 {
+            m.insert(i, i);
+        }
+        test::black_box(&m);
+    });
+}
+
+#[bench]
+fn rev_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_capacity(1000);
+    b.iter(|| {
+        m.clear();
+        for i in 0..1000 {
+            let i = 10000000000 - i;
+            m.insert(i, i);
+        }
+        test::black_box(&m);
+    });
+}
+
+#[bench]
+fn rng_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_capacity(1000);
+    b.iter(|| {
+        m.clear();
+        let mut x = 1u64;
+        for i in 0..1000 {
+            m.insert(x, x);
+            x ^= x >> 12; // a
+            x ^= x << 25; // b
+            x ^= x >> 27; // c
+            x *= 2685821657736338717;
+        }
+        test::black_box(&m);
+    });
+}
+
+#[bench]
 fn find_existing(b: &mut Bencher) {
     let mut m = HashMap::new();
 

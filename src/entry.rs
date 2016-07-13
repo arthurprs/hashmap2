@@ -145,12 +145,8 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
     /// and returns a mutable reference to it
     pub fn insert(self, value: V) -> &'a mut V {
         match self.elem {
-            NeqElem(bucket, ib) => {
-                robin_hood(bucket, ib, self.hash, self.key, value)
-            }
-            NoElem(bucket) => {
-                bucket.put(self.hash, self.key, value).into_mut_refs().1
-            }
+            NeqElem(bucket, ib) => robin_hood(bucket, ib, self.hash, self.key, value),
+            NoElem(bucket) => bucket.put(self.hash, self.key, value).into_mut_refs().1,
         }
     }
 
@@ -173,13 +169,14 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
 // These fns are public, but the entire module is not.
 
 #[inline]
-pub fn from_internal<K, V>(internal: InternalEntry<K, V, &mut RawTable<K, V>>, key: Option<K>)
-                          -> Option<Entry<K, V>> {
+pub fn from_internal<K, V>(internal: InternalEntry<K, V, &mut RawTable<K, V>>,
+                           key: Option<K>)
+                           -> Option<Entry<K, V>> {
     match internal {
         InternalEntry::Occupied { elem } => {
             Some(Entry::Occupied(OccupiedEntry {
                 key: key,
-                elem: elem
+                elem: elem,
             }))
         }
         InternalEntry::Vacant { hash, elem } => {
@@ -189,12 +186,12 @@ pub fn from_internal<K, V>(internal: InternalEntry<K, V, &mut RawTable<K, V>>, k
                 elem: elem,
             }))
         }
-        InternalEntry::TableIsEmpty => None
+        InternalEntry::TableIsEmpty => None,
     }
 }
 
 #[inline]
 pub fn occupied_elem<'a, 'r, K, V>(occupied: &'r mut OccupiedEntry<'a, K, V>)
-                         -> &'r mut FullBucket<K, V, &'a mut RawTable<K, V>> {
+                                   -> &'r mut FullBucket<K, V, &'a mut RawTable<K, V>> {
     &mut occupied.elem
 }

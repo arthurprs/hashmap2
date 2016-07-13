@@ -28,7 +28,10 @@ impl SipHashState {
     #[allow(deprecated)] // rand
     pub fn new() -> SipHashState {
         let mut r = rand::thread_rng();
-        SipHashState { k0: r.gen(), k1: r.gen() }
+        SipHashState {
+            k0: r.gen(),
+            k1: r.gen(),
+        }
     }
 }
 

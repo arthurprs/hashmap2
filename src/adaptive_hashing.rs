@@ -8,13 +8,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::hash::{BuildHasher, SipHasher, Hasher};
+use std::hash::{BuildHasher, BuildHasherDefault, SipHasher, Hasher};
 
 use sip_hash_state::SipHashState;
 
 #[derive(Clone)]
 pub struct AdaptiveState {
-    inner: Option<SipHashState>
+    inner: Option<SipHashState>,
 }
 
 impl AdaptiveState {
@@ -25,9 +25,7 @@ impl AdaptiveState {
 
     #[inline]
     pub fn new_fast() -> Self {
-        AdaptiveState {
-            inner: None
-        }
+        AdaptiveState { inner: None }
     }
 
     #[inline]
@@ -65,51 +63,94 @@ pub struct AdaptiveHasher {
     hash: u64,
 }
 
-/// Load a full u64 word from a byte stream, in LE order. Use
-/// `copy_nonoverlapping` to let the compiler generate the most efficient way
-/// to load u64 from a possibly unaligned address.
-///
-/// Unsafe because: unchecked indexing at 0..len
-#[inline]
-unsafe fn load_u64_le(buf: &[u8], len: usize) -> u64 {
-    use std::ptr;
-    debug_assert!(len <= buf.len());
-    let mut data = 0u64;
-    ptr::copy_nonoverlapping(buf.as_ptr(), &mut data as *mut _ as *mut u8, len);
-    data.to_le()
-}
-
-// Primes used in XXH64's finalizer.
-const PRIME_2: u64 = 14029467366897019727;
-const PRIME_3: u64 = 1609587929392839161;
-
-// Xxhash's finalizer.
-fn mix(data: u64) -> u64 {
-    let mut hash = data;
-    hash ^= hash >> 33;
-    hash = hash.wrapping_mul(PRIME_2);
-    hash ^= hash >> 29;
-    hash = hash.wrapping_mul(PRIME_3);
-    hash ^= hash >> 32;
-    hash
-}
-
 impl Hasher for AdaptiveHasher {
     #[inline]
     fn write(&mut self, msg: &[u8]) {
         if let Some(ref mut hasher) = self.safe_hasher {
-            // Use safe hashing.
             hasher.write(msg);
         } else {
-            // Use fast hashing.
-            let msg_data = unsafe {
-                if msg.len() <= 8 {
-                    load_u64_le(msg, msg.len())
-                } else {
-                    panic!()
-                }
-            };
-            self.hash = mix(msg_data);
+            panic!();
+        }
+    }
+
+    #[inline]
+    fn write_u8(&mut self, i: u8) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_u8(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_u16(&mut self, i: u16) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_u16(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_u32(&mut self, i: u32) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_u32(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_u64(&mut self, i: u64) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_u64(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_usize(&mut self, i: usize) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_usize(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_i8(&mut self, i: i8) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_i8(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_i16(&mut self, i: i16) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_i16(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_i32(&mut self, i: i32) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_i32(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_i64(&mut self, i: i64) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_i64(i);
+        } else {
+            self.hash ^= i as u64;
+        }
+    }
+    #[inline]
+    fn write_isize(&mut self, i: isize) {
+        if let Some(ref mut hasher) = self.safe_hasher {
+            hasher.write_isize(i);
+        } else {
+            self.hash ^= i as u64;
         }
     }
 

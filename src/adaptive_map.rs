@@ -13,10 +13,7 @@ use std::mem::replace;
 use std::ops::{Deref, DerefMut};
 
 use adaptive_hashing::AdaptiveState;
-use table::{
-    RawTable,
-    SafeHash
-};
+use table::{RawTable, SafeHash};
 use internal_entry::InternalEntry;
 use entry::VacantEntryState;
 use entry::VacantEntryState::NeqElem;
@@ -86,8 +83,7 @@ impl<K, V> SafeguardedSearch<K, V> for HashMap<K, V, AdaptiveState>
     where K: Eq + OneshotHash
 {
     #[inline]
-    fn safeguarded_search(&mut self, key: &K, hash: SafeHash)
-                         -> InternalEntryMut<K, V> {
+    fn safeguarded_search(&mut self, key: &K, hash: SafeHash) -> InternalEntryMut<K, V> {
 
         let table_capacity = self.table.capacity();
         let entry = search_hashed(DerefMapToTable(self), hash, |k| k == key);
@@ -96,9 +92,7 @@ impl<K, V> SafeguardedSearch<K, V> for HashMap<K, V, AdaptiveState>
                 // This should compile down to a simple copy.
                 InternalEntry::Occupied { elem: elem.convert_table() }
             }
-            InternalEntry::TableIsEmpty => {
-                InternalEntry::TableIsEmpty
-            }
+            InternalEntry::TableIsEmpty => InternalEntry::TableIsEmpty,
             InternalEntry::Vacant { elem, hash } => {
                 safeguard_vacant_entry(elem, key, hash, table_capacity)
             }
@@ -119,12 +113,16 @@ impl<K, V> Default for HashMap<K, V, AdaptiveState>
 }
 
 #[inline]
-fn safeguard_vacant_entry<'a, K, V>(
-    elem: VacantEntryState<K, V, DerefMapToTable<'a, K, V, AdaptiveState>>,
-    key: &K,
-    hash: SafeHash,
-    table_capacity: usize,
-) -> InternalEntryMut<'a, K, V>
+fn safeguard_vacant_entry<'a, K, V>(elem: VacantEntryState<K,
+                                                           V,
+                                                           DerefMapToTable<'a,
+                                                                           K,
+                                                                           V,
+                                                                           AdaptiveState>>,
+                                    key: &K,
+                                    hash: SafeHash,
+                                    table_capacity: usize)
+                                    -> InternalEntryMut<'a, K, V>
     where K: Eq + Hash
 {
     let index = match elem {
@@ -159,20 +157,20 @@ fn safeguard_vacant_entry<'a, K, V>(
 
 // Adapt to safe hashing, if desirable.
 #[cold]
-fn maybe_adapt_to_safe_hashing<'a, K, V>(
-    elem: VacantEntryState<K, V, DerefMapToTable<'a, K, V, AdaptiveState>>,
-    key: &K,
-    hash: SafeHash
-) -> InternalEntryMut<'a, K, V>
+fn maybe_adapt_to_safe_hashing<'a, K, V>(elem: VacantEntryState<K,
+                                                                V,
+                                                                DerefMapToTable<'a,
+                                                                                K,
+                                                                                V,
+                                                                                AdaptiveState>>,
+                                         key: &K,
+                                         hash: SafeHash)
+                                         -> InternalEntryMut<'a, K, V>
     where K: Eq + Hash
 {
     let map = match elem {
-        NeqElem(bucket, _) => {
-            bucket.into_table().0
-        }
-        NoElem(bucket) => {
-            bucket.into_table().0
-        }
+        NeqElem(bucket, _) => bucket.into_table().0,
+        NoElem(bucket) => bucket.into_table().0,
     };
     let capacity = map.table.capacity();
     let load_factor = map.len() as f32 / capacity as f32;
@@ -239,27 +237,25 @@ mod test_adaptive_map {
     use super::DISPLACEMENT_THRESHOLD;
 
     // These values all hash to N * 2^24 + 1523546 +/- 2.
-    static VALUES: &'static [u32] = &[
-        513314, 2977019, 3921903, 5005242, 6124431, 7696812, 16129307, 16296222, 17425488,
-        17898424, 19926075, 24768203, 25614709, 29006382, 30234341, 32377109, 34394074,
-        40324616, 40892565, 43025295, 43208269, 43761687, 43883113, 45274367, 47850630,
-        48320162, 48458322, 48960668, 49470322, 50545229, 51305930, 51391781, 54465806,
-        54541272, 55497339, 55788640, 57113511, 58250085, 58326435, 59316149, 62059483,
-        64136437, 64978683, 65076823, 66571125, 66632487, 68067917, 69921206, 70107088,
-        71829636, 76189936, 78639014, 80841986, 81844602, 83028134, 85818283, 86768196,
-        90374529, 91119955, 91540016, 93761675, 94583431, 95027700, 95247246, 95564585,
-        95663108, 95742804, 96147866, 97538112, 101129622, 101782620, 102170444,
-        104790535, 104815436, 105802703, 106364729, 106520836, 106563112, 107893429,
-        112185856, 113337504, 116895916, 122566166, 123359972, 123897385, 124028529,
-        125100458, 127234401, 128292718, 129767575, 132088268, 133737047, 133796663,
-        135903283, 136513103, 138868673, 139106372, 141282728, 141628856, 143250884,
-        143784740, 149114217, 150882858, 151116713, 152221499, 154271016, 155574791,
-        156179900, 157228942, 157518087, 159572211, 161327800, 161750984, 162237441,
-        164793050, 165064176, 166764350, 166847618, 167111553, 168117915, 169230761,
-        170322861, 170937855, 172389295, 173619266, 177610645, 178415544, 179549865,
-        185538500, 185906457, 195946437, 196591640, 196952032, 197505405, 200021193,
-        201058930, 201496104, 204691301, 206144773, 207320627, 211221882, 215434456,
-    ];
+    static VALUES: &'static [u32] =
+        &[513314, 2977019, 3921903, 5005242, 6124431, 7696812, 16129307, 16296222, 17425488,
+          17898424, 19926075, 24768203, 25614709, 29006382, 30234341, 32377109, 34394074,
+          40324616, 40892565, 43025295, 43208269, 43761687, 43883113, 45274367, 47850630,
+          48320162, 48458322, 48960668, 49470322, 50545229, 51305930, 51391781, 54465806,
+          54541272, 55497339, 55788640, 57113511, 58250085, 58326435, 59316149, 62059483,
+          64136437, 64978683, 65076823, 66571125, 66632487, 68067917, 69921206, 70107088,
+          71829636, 76189936, 78639014, 80841986, 81844602, 83028134, 85818283, 86768196,
+          90374529, 91119955, 91540016, 93761675, 94583431, 95027700, 95247246, 95564585,
+          95663108, 95742804, 96147866, 97538112, 101129622, 101782620, 102170444, 104790535,
+          104815436, 105802703, 106364729, 106520836, 106563112, 107893429, 112185856, 113337504,
+          116895916, 122566166, 123359972, 123897385, 124028529, 125100458, 127234401, 128292718,
+          129767575, 132088268, 133737047, 133796663, 135903283, 136513103, 138868673, 139106372,
+          141282728, 141628856, 143250884, 143784740, 149114217, 150882858, 151116713, 152221499,
+          154271016, 155574791, 156179900, 157228942, 157518087, 159572211, 161327800, 161750984,
+          162237441, 164793050, 165064176, 166764350, 166847618, 167111553, 168117915, 169230761,
+          170322861, 170937855, 172389295, 173619266, 177610645, 178415544, 179549865, 185538500,
+          185906457, 195946437, 196591640, 196952032, 197505405, 200021193, 201058930, 201496104,
+          204691301, 206144773, 207320627, 211221882, 215434456];
 
     #[test]
     fn test_dos_safeguard() {
