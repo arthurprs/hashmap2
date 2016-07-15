@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::hash::{BuildHasher, SipHasher, Hasher};
+use std::hash::{BuildHasher, SipHasher13 as SipHasher, Hasher};
 
 use sip_hash_state::SipHashState;
 

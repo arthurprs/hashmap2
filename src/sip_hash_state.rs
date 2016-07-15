@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::hash::{BuildHasher, SipHasher};
+use std::hash::{BuildHasher, SipHasher13 as SipHasher};
 use rand::{self, Rng};
 
 /// `SipHashState` is a random state for `HashMap` types.

@@ -131,3 +131,49 @@ fn get_remove_insert(b: &mut Bencher) {
     });
     test::black_box(&m);
 }
+
+
+#[bench]
+fn seq_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_hasher(RandomState::new());
+    m.reserve(1000);
+    b.iter(|| {
+        m.clear();
+        for i in 0..100 {
+            m.insert(i, i);
+        }
+        test::black_box(&m);
+    });
+}
+
+#[bench]
+fn rev_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_hasher(RandomState::new());
+    m.reserve(1000);
+    b.iter(|| {
+        m.clear();
+        for i in 0..100 {
+            let i = 10000000000 - i;
+            m.insert(i, i);
+        }
+        test::black_box(&m);
+    });
+}
+
+#[bench]
+fn rng_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_hasher(RandomState::new());
+    m.reserve(1000);
+    b.iter(|| {
+        m.clear();
+        let mut x = 1u64;
+        for i in 0..100 {
+            m.insert(x, x);
+            x ^= x >> 12; // a
+            x ^= x << 25; // b
+            x ^= x >> 27; // c
+            x *= 2685821657736338717;
+        }
+        test::black_box(&m);
+    });
+}
