@@ -135,8 +135,9 @@ fn get_remove_insert(b: &mut Bencher) {
 
 #[bench]
 fn seq_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_capacity(1000);
     b.iter(|| {
-        let mut m = HashMap::with_capacity(1000);
+        m.clear();
         for i in 0..100 {
             m.insert(i, i);
         }
@@ -146,8 +147,9 @@ fn seq_insert(b: &mut Bencher) {
 
 #[bench]
 fn rev_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_capacity(1000);
     b.iter(|| {
-        let mut m = HashMap::with_capacity(1000);
+        m.clear();
         for i in 0..100 {
             let i = 10000000000 - i;
             m.insert(i, i);
@@ -158,9 +160,10 @@ fn rev_insert(b: &mut Bencher) {
 
 #[bench]
 fn rng_insert(b: &mut Bencher) {
+    let mut m = HashMap::with_capacity(1000);
     b.iter(|| {
+        m.clear();
         let mut x = 1u64;
-        let mut m = HashMap::with_capacity(1000);
         for i in 0..100 {
             m.insert(x, x);
             x ^= x >> 12; // a
