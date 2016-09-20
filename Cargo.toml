@@ -37,3 +37,7 @@ homepage    = "https://github.com/carllerche/hashmap2"
 
 [dependencies]
 rand = "0.3.12"
+
+[dev-dependencies]
+fnv = "1.0"
+lazy_static = "0.2"

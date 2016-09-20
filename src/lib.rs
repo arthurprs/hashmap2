@@ -11,11 +11,11 @@
     alloc,
     core_intrinsics,
     dropck_parametricity,
-    filling_drop,
+    sip_hash_13,
     heap_api,
     oom,
-    unique,
-    unsafe_no_drop_flag)]
+    shared,
+    unique)]
 
 #![cfg_attr(test, feature(inclusive_range_syntax))]
 
@@ -32,7 +32,7 @@ use std::borrow::{Borrow, Cow};
 use std::cmp::{max, Eq, PartialEq};
 use std::default::Default;
 use std::fmt::{self, Debug};
-use std::hash::{BuildHasher, Hash, SipHasher};
+use std::hash::{BuildHasher, Hash, SipHasher13 as SipHasher};
 use std::iter::{self, Iterator, ExactSizeIterator, IntoIterator, FromIterator, Extend, Map};
 use std::mem::{self, replace};
 use std::ops::{Deref, FnMut, FnOnce, Index};
@@ -1010,7 +1010,6 @@ impl<K, V, S> HashMap<K, V, S>
     /// # Examples
     ///
     /// ```
-    /// #![feature(drain)]
     ///
     /// use hashmap2::HashMap;
     ///
