@@ -101,8 +101,20 @@ macro_rules! bench_mod {
         }
 
         #[bench]
-        fn insert_150(b: &mut Bencher) {
-            let c = 150usize;
+        fn insert_100(b: &mut Bencher) {
+            let c = 100usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, ());
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn insert_1000(b: &mut Bencher) {
+            let c = 1000usize;
             b.iter(|| {
                 let mut map = $hashmap::with_capacity(c);
                 for x in 0..c {

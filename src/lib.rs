@@ -1716,8 +1716,15 @@ impl RandomState {
     #[inline]
     #[allow(deprecated)] // rand
     pub fn new() -> RandomState {
-        let mut r = rand::thread_rng();
-        RandomState { k0: r.gen(), k1: r.gen() }
+        thread_local!(static KEYS: (u64, u64) = {
+            let r = rand::OsRng::new();
+            let mut r = r.expect("failed to create an OS RNG");
+            (r.gen(), r.gen())
+        });
+
+        KEYS.with(|&(k0, k1)| {
+            RandomState { k0: k0, k1: k1 }
+        })
     }
 }
 
