@@ -4,481 +4,288 @@ extern crate rand;
 extern crate fnv;
 #[macro_use]
 extern crate lazy_static;
-
-use fnv::FnvHasher;
-use std::hash::BuildHasherDefault;
-type FnvBuilder = BuildHasherDefault<FnvHasher>;
-
-use test::Bencher;
-
 extern crate hashmap2;
 
-use hashmap2::HashMap as OrderMap;
 
-use std::collections::HashMap;
-use std::iter::FromIterator;
+macro_rules! bench_mod {
+    ($modname: ident, $hashmap: ident) => {
+    mod $modname {
+        use fnv::FnvHasher;
+        use std::hash::BuildHasherDefault;
+        type FnvBuilder = BuildHasherDefault<FnvHasher>;
 
-use rand::{weak_rng, Rng};
+        use test::Bencher;
 
-#[bench]
-fn new_hashmap(b: &mut Bencher) {
-    b.iter(|| {
-        HashMap::<String, String>::new()
-    });
-}
+        use hashmap2::HashMap as HashMap2;
 
-#[bench]
-fn new_orderedmap(b: &mut Bencher) {
-    b.iter(|| {
-        OrderMap::<String, String>::new()
-    });
-}
+        use std::collections::HashMap;
+        use std::iter::FromIterator;
 
-#[bench]
-fn with_capacity_10e5_hashmap(b: &mut Bencher) {
-    b.iter(|| {
-        HashMap::<String, String>::with_capacity(10_000)
-    });
-}
+        use rand::{weak_rng, Rng};
 
-#[bench]
-fn with_capacity_10e5_orderedmap(b: &mut Bencher) {
-    b.iter(|| {
-        OrderMap::<String, String>::with_capacity(10_000)
-    });
-}
-
-#[bench]
-fn insert_hashmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map = HashMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x, ());
+        #[bench]
+        fn new(b: &mut Bencher) {
+            b.iter(|| {
+                $hashmap::<String, String>::new()
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_orderedmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map = OrderMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x, ());
+        #[bench]
+        fn with_capacity_10e5(b: &mut Bencher) {
+            b.iter(|| {
+                $hashmap::<String, String>::with_capacity(10_000)
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_hashmap_string_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map = HashMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x.to_string(), ());
+        #[bench]
+        fn insert_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, ());
+                }
+                map
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_orderedmap_string_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map = OrderMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x.to_string(), ());
+        #[bench]
+        fn insert_string_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x.to_string(), ());
+                }
+                map
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_hashmap_str_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    let ss = Vec::from_iter((0..c).map(|x| x.to_string()));
-    b.iter(|| {
-        let mut map = HashMap::with_capacity(c);
-        for key in &ss {
-            map.insert(&key[..], ());
+        #[bench]
+        fn insert_str_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let ss = Vec::from_iter((0..c).map(|x| x.to_string()));
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for key in &ss {
+                    map.insert(&key[..], ());
+                }
+                map
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_orderedmap_str_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    let ss = Vec::from_iter((0..c).map(|x| x.to_string()));
-    b.iter(|| {
-        let mut map = OrderMap::with_capacity(c);
-        for key in &ss {
-            map.insert(&key[..], ());
+        #[bench]
+        fn insert_int_bigvalue_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let value = [0u64; 10];
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for i in 0..c {
+                    map.insert(i, value);
+                }
+                map
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_hashmap_int_bigvalue_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    let value = [0u64; 10];
-    b.iter(|| {
-        let mut map = HashMap::with_capacity(c);
-        for i in 0..c {
-            map.insert(i, value);
+
+        #[bench]
+        fn insert_100_000(b: &mut Bencher) {
+            let c = 100_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, ());
+                }
+                map
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_orderedmap_int_bigvalue_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    let value = [0u64; 10];
-    b.iter(|| {
-        let mut map = OrderMap::with_capacity(c);
-        for i in 0..c {
-            map.insert(i, value);
+        #[bench]
+        fn insert_150(b: &mut Bencher) {
+            let c = 150usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, ());
+                }
+                map
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_hashmap_100_000(b: &mut Bencher) {
-    let c = 100_000;
-    b.iter(|| {
-        let mut map = HashMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x, ());
+        #[bench]
+        fn iterate_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = $hashmap::with_capacity(c);
+            let len = c - c/10;
+            for x in 0..len {
+                map.insert(x, ());
+            }
+            assert_eq!(map.len(), len);
+            b.iter(|| {
+                map.keys().sum::<usize>()
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_orderedmap_100_000(b: &mut Bencher) {
-    let c = 100_000;
-    b.iter(|| {
-        let mut map = OrderMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x, ());
+        fn shuffled_keys<I>(iter: I) -> Vec<I::Item>
+            where I: IntoIterator
+        {
+            let mut v = Vec::from_iter(iter);
+            let mut rng = weak_rng();
+            rng.shuffle(&mut v);
+            v
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_hashmap_150(b: &mut Bencher) {
-    let c = 150;
-    b.iter(|| {
-        let mut map = HashMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x, ());
+        #[bench]
+        fn lookup_10_000_exist(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = $hashmap::with_capacity(c);
+            let keys = shuffled_keys(0..c);
+            for &key in &keys {
+                map.insert(key, 1);
+            }
+            b.iter(|| {
+                let mut found = 0;
+                for key in 5000..c {
+                    found += map.get(&key).is_some() as i32;
+                }
+                found
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn insert_orderedmap_150(b: &mut Bencher) {
-    let c = 150;
-    b.iter(|| {
-        let mut map = OrderMap::with_capacity(c);
-        for x in 0..c {
-            map.insert(x, ());
+        #[bench]
+        fn lookup_hashmap_10_000_noexist(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = HashMap::with_capacity(c);
+            let keys = shuffled_keys(0..c);
+            for &key in &keys {
+                map.insert(key, 1);
+            }
+            b.iter(|| {
+                let mut found = 0;
+                for key in c..15000 {
+                    found += map.get(&key).is_some() as i32;
+                }
+                found
+            });
         }
-        map
-    });
-}
 
-#[bench]
-fn iterate_hashmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    let mut map = HashMap::with_capacity(c);
-    let len = c - c/10;
-    for x in 0..len {
-        map.insert(x, ());
-    }
-    assert_eq!(map.len(), len);
-    b.iter(|| {
-        map.keys().sum::<usize>()
-    });
-}
 
-#[bench]
-fn iterate_orderedmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    let mut map = OrderMap::with_capacity(c);
-    let len = c - c/10;
-    for x in 0..len {
-        map.insert(x, ());
-    }
-    assert_eq!(map.len(), len);
-    b.iter(|| {
-        map.keys().sum::<usize>()
-    });
-}
+        // number of items to look up
+        const LOOKUP_MAP_SIZE: usize = 100_000_usize;
+        const LOOKUP_SAMPLE_SIZE: usize = 5000;
 
-fn shuffled_keys<I>(iter: I) -> Vec<I::Item>
-    where I: IntoIterator
-{
-    let mut v = Vec::from_iter(iter);
-    let mut rng = weak_rng();
-    rng.shuffle(&mut v);
-    v
-}
 
-#[bench]
-fn lookup_hashmap_10_000_exist(b: &mut Bencher) {
-    let c = 10_000;
-    let mut map = HashMap::with_capacity(c);
-    let keys = shuffled_keys(0..c);
-    for &key in &keys {
-        map.insert(key, 1);
-    }
-    b.iter(|| {
-        let mut found = 0;
-        for key in 5000..c {
-            found += map.get(&key).is_some() as i32;
+        lazy_static! {
+            static ref HMAP_100K: $hashmap<usize, usize> = {
+                let c = LOOKUP_MAP_SIZE;
+                let mut map = $hashmap::with_capacity(c as usize);
+                let keys = shuffled_keys(0..c);
+                for &key in &keys {
+                    map.insert(key, key);
+                }
+                map
+            };
         }
-        found
-    });
-}
 
-#[bench]
-fn lookup_hashmap_10_000_noexist(b: &mut Bencher) {
-    let c = 10_000;
-    let mut map = HashMap::with_capacity(c);
-    let keys = shuffled_keys(0..c);
-    for &key in &keys {
-        map.insert(key, 1);
-    }
-    b.iter(|| {
-        let mut found = 0;
-        for key in c..15000 {
-            found += map.get(&key).is_some() as i32;
+        #[bench]
+        fn lookup_100_000_multi(b: &mut Bencher) {
+            let map = &*HMAP_100K;
+            b.iter(|| {
+                let mut found = 0;
+                for key in 0..LOOKUP_SAMPLE_SIZE {
+                    found += map.get(&key).is_some() as u32;
+                }
+                found
+            });
         }
-        found
-    });
-}
 
-#[bench]
-fn lookup_orderedmap_10_000_exist(b: &mut Bencher) {
-    let c = 10_000;
-    let mut map = OrderMap::with_capacity(c);
-    let keys = shuffled_keys(0..c);
-    for &key in &keys {
-        map.insert(key, 1);
-    }
-    b.iter(|| {
-        let mut found = 0;
-        for key in 5000..c {
-            found += map.get(&key).is_some() as i32;
+        #[bench]
+        fn lookup_100_000_multi_10p(b: &mut Bencher) {
+            let map = &*HMAP_100K;
+            b.iter(|| {
+                let mut found = 0;
+                for key in 0..LOOKUP_SAMPLE_SIZE / 10 {
+                    found += map.get(&key).is_some() as u32;
+                }
+                found
+            });
         }
-        found
-    });
-}
 
-#[bench]
-fn lookup_orderedmap_10_000_noexist(b: &mut Bencher) {
-    let c = 10_000;
-    let mut map = OrderMap::with_capacity(c);
-    let keys = shuffled_keys(0..c);
-    for &key in &keys {
-        map.insert(key, 1);
-    }
-    b.iter(|| {
-        let mut found = 0;
-        for key in c..15000 {
-            found += map.get(&key).is_some() as i32;
+
+        #[bench]
+        fn lookup_100_000_single(b: &mut Bencher) {
+            let map = &*HMAP_100K;
+            let mut iter = (0..LOOKUP_MAP_SIZE + LOOKUP_SAMPLE_SIZE).cycle();
+            b.iter(|| {
+                let key = iter.next().unwrap();
+                map.get(&key).is_some()
+            });
         }
-        found
-    });
-}
 
-// number of items to look up
-const LOOKUP_MAP_SIZE: u32 = 100_000_u32;
-const LOOKUP_SAMPLE_SIZE: u32 = 5000;
-
-
-lazy_static! {
-    static ref HMAP_100K: HashMap<u32, u32> = {
-        let c = LOOKUP_MAP_SIZE;
-        let mut map = HashMap::with_capacity(c as usize);
-        let keys = shuffled_keys(0..c);
-        for &key in &keys {
-            map.insert(key, key);
+        #[bench]
+        fn lookup_100_000_single_10p(b: &mut Bencher) {
+            let map = &*HMAP_100K;
+            let mut iter = (0..LOOKUP_MAP_SIZE / 10).cycle();
+            b.iter(|| {
+                let key = iter.next().unwrap();
+                map.get(&key).is_some()
+            });
         }
-        map
-    };
-}
 
-lazy_static! {
-    static ref OMAP_100K: OrderMap<u32, u32> = {
-        let c = LOOKUP_MAP_SIZE;
-        let mut map = OrderMap::with_capacity(c as usize);
-        let keys = shuffled_keys(0..c);
-        for &key in &keys {
-            map.insert(key, key);
+        // without preallocation
+        #[bench]
+        fn grow_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::new();
+                for x in 0..c {
+                    map.insert(x, ());
+                }
+                map
+            });
         }
-        map
-    };
-}
 
-#[bench]
-fn lookup_hashmap_100_000_multi(b: &mut Bencher) {
-    let map = &*HMAP_100K;
-    b.iter(|| {
-        let mut found = 0;
-        for key in 0..LOOKUP_SAMPLE_SIZE {
-            found += map.get(&key).is_some() as u32;
+        #[bench]
+        fn grow_fnv_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            b.iter(|| {
+                let mut map: $hashmap<_, _, FnvBuilder> = $hashmap::default();
+                for x in 0..c {
+                    map.insert(x, ());
+                }
+                map
+            });
         }
-        found
-    });
-}
 
-
-#[bench]
-fn lookup_ordermap_100_000_multi(b: &mut Bencher) {
-    let map = &*OMAP_100K;
-    b.iter(|| {
-        let mut found = 0;
-        for key in 0..LOOKUP_SAMPLE_SIZE {
-            found += map.get(&key).is_some() as u32;
+        const MERGE: usize = 10_000usize;
+        #[bench]
+        fn merge_simple(b: &mut Bencher) {
+            let first_map: $hashmap<usize, _> = (0..MERGE).map(|i| (i, ())).collect();
+            let second_map: $hashmap<usize, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
+            b.iter(|| {
+                let mut merged = first_map.clone();
+                merged.extend(second_map.iter().map(|(&k, &v)| (k, v)));
+                merged
+            });
         }
-        found
-    });
-}
 
-#[bench]
-fn lookup_hashmap_100_000_single(b: &mut Bencher) {
-    let map = &*HMAP_100K;
-    let mut iter = (0..LOOKUP_MAP_SIZE + LOOKUP_SAMPLE_SIZE).cycle();
-    b.iter(|| {
-        let key = iter.next().unwrap();
-        map.get(&key).is_some()
-    });
-}
+        #[bench]
+        fn merge_shuffle(b: &mut Bencher) {
+            let first_map: $hashmap<usize, _> = (0..MERGE).map(|i| (i, ())).collect();
+            let second_map: $hashmap<usize, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
+            let mut v = Vec::new();
+            let mut rng = weak_rng();
+            b.iter(|| {
+                let mut merged = first_map.clone();
+                v.extend(second_map.iter().map(|(&k, &v)| (k, v)));
+                rng.shuffle(&mut v);
+                merged.extend(v.drain(..));
 
-
-#[bench]
-fn lookup_ordermap_100_000_single(b: &mut Bencher) {
-    let map = &*OMAP_100K;
-    let mut iter = (0..LOOKUP_MAP_SIZE + LOOKUP_SAMPLE_SIZE).cycle();
-    b.iter(|| {
-        let key = iter.next().unwrap();
-        map.get(&key).is_some()
-    });
-}
-
-
-
-// without preallocation
-#[bench]
-fn grow_hashmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map = HashMap::new();
-        for x in 0..c {
-            map.insert(x, ());
+                merged
+            });
         }
-        map
-    });
+    }};
 }
 
-#[bench]
-fn grow_orderedmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map = OrderMap::new();
-        for x in 0..c {
-            map.insert(x, ());
-        }
-        map
-    });
-}
-
-// without preallocation
-#[bench]
-fn grow_fnv_hashmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map: HashMap<_, _, FnvBuilder> = HashMap::default();
-        for x in 0..c {
-            map.insert(x, ());
-        }
-        map
-    });
-}
-
-#[bench]
-fn grow_fnv_orderedmap_10_000(b: &mut Bencher) {
-    let c = 10_000;
-    b.iter(|| {
-        let mut map: OrderMap<_, _, FnvBuilder> = OrderMap::default();
-        for x in 0..c {
-            map.insert(x, ());
-        }
-        map
-    });
-}
-
-const MERGE: u64 = 10_000;
-#[bench]
-fn hashmap_merge_simple(b: &mut Bencher) {
-    let first_map: HashMap<u64, _> = (0..MERGE).map(|i| (i, ())).collect();
-    let second_map: HashMap<u64, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
-    b.iter(|| {
-        let mut merged = first_map.clone();
-        merged.extend(second_map.iter().map(|(&k, &v)| (k, v)));
-        merged
-    });
-}
-
-#[bench]
-fn hashmap_merge_shuffle(b: &mut Bencher) {
-    let first_map: HashMap<u64, _> = (0..MERGE).map(|i| (i, ())).collect();
-    let second_map: HashMap<u64, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
-    let mut v = Vec::new();
-    let mut rng = weak_rng();
-    b.iter(|| {
-        let mut merged = first_map.clone();
-        v.extend(second_map.iter().map(|(&k, &v)| (k, v)));
-        rng.shuffle(&mut v);
-        merged.extend(v.drain(..));
-
-        merged
-    });
-}
-
-#[bench]
-fn ordermap_merge_simple(b: &mut Bencher) {
-    let first_map: OrderMap<u64, _> = (0..MERGE).map(|i| (i, ())).collect();
-    let second_map: OrderMap<u64, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
-    b.iter(|| {
-        let mut merged = first_map.clone();
-        merged.extend(second_map.iter().map(|(&k, &v)| (k, v)));
-        merged
-    });
-}
-
-#[bench]
-fn ordermap_merge_shuffle(b: &mut Bencher) {
-    let first_map: OrderMap<u64, _> = (0..MERGE).map(|i| (i, ())).collect();
-    let second_map: OrderMap<u64, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
-    let mut v = Vec::new();
-    let mut rng = weak_rng();
-    b.iter(|| {
-        let mut merged = first_map.clone();
-        v.extend(second_map.iter().map(|(&k, &v)| (k, v)));
-        rng.shuffle(&mut v);
-        merged.extend(v.drain(..));
-
-        merged
-    });
-}
+bench_mod!(hashmap, HashMap);
+bench_mod!(hhhkvjv, HashMap2);
