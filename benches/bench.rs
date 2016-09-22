@@ -134,7 +134,35 @@ macro_rules! bench_mod {
             }
             assert_eq!(map.len(), len);
             b.iter(|| {
+                map.iter().map(|(k, v)| *k + *v).sum::<usize>()
+            });
+        }
+
+        #[bench]
+        fn iter_keys_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = $hashmap::with_capacity(c);
+            let len = c - c/10;
+            for x in 0..len {
+                map.insert(x, x);
+            }
+            assert_eq!(map.len(), len);
+            b.iter(|| {
                 map.keys().sum::<usize>()
+            });
+        }
+
+        #[bench]
+        fn iter_values_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = $hashmap::with_capacity(c);
+            let len = c - c/10;
+            for x in 0..len {
+                map.insert(x, x);
+            }
+            assert_eq!(map.len(), len);
+            b.iter(|| {
+                map.values().sum::<usize>()
             });
         }
 
