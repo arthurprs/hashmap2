@@ -158,7 +158,7 @@ macro_rules! bench_mod {
             b.iter(|| {
                 let mut found = 0;
                 for key in 0..5000 {
-                    found += *map.get(&key).unwrap();
+                    found += map.contains_key(&key) as u32;
                 }
                 found
             });
@@ -175,7 +175,7 @@ macro_rules! bench_mod {
             b.iter(|| {
                 let mut found = 0;
                 for key in c..c+5000 {
-                    found += map.get(&key).is_none() as u32;
+                    found += map.contains_key(&key) as u32;
                 }
                 found
             });
