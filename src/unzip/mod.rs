@@ -7,24 +7,22 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-#![feature(
-    alloc,
-    core_intrinsics,
-    dropck_parametricity,
-    sip_hash_13,
-    heap_api,
-    oom,
-    shared,
-    unique)]
+// #![feature(
+//     alloc,
+//     core_intrinsics,
+//     dropck_parametricity,
+//     sip_hash_13,
+//     heap_api,
+//     oom,
+//     shared,
+//     unique)]
+//
+// #![cfg_attr(test, feature(inclusive_range_syntax))]
+//
+// extern crate alloc;
+// extern crate rand;
 
-#![cfg_attr(test, feature(inclusive_range_syntax))]
-
-extern crate alloc;
-extern crate rand;
-
-mod recover;
 mod table;
-pub mod unzip;
 
 use self::Entry::*;
 use self::VacantEntryState::*;
@@ -38,11 +36,11 @@ use std::iter::{self, Iterator, ExactSizeIterator, IntoIterator, FromIterator, E
 use std::mem::{self, replace};
 use std::ops::{Deref, FnMut, FnOnce, Index};
 use std::option::Option::{Some, None};
-use rand::Rng;
+use rand::{self, Rng};
 use recover::Recover;
 
-use table::{Bucket, EmptyBucket, FullBucket, FullBucketMut, RawTable, SafeHash};
-use table::BucketState::{Empty, Full};
+use unzip::table::{Bucket, EmptyBucket, FullBucket, FullBucketMut, RawTable, SafeHash};
+use unzip::table::BucketState::{Empty, Full};
 
 const INITIAL_LOG2_CAP: usize = 5;
 const INITIAL_CAPACITY: usize = 1 << INITIAL_LOG2_CAP; // 2^5

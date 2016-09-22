@@ -16,6 +16,7 @@ macro_rules! bench_mod {
         use test::Bencher;
 
         use hashmap2::HashMap as HashMap2;
+        use hashmap2::unzip::HashMap as HashMap2Unzip;
 
         use std::collections::HashMap;
         use std::iter::FromIterator;
@@ -398,5 +399,5 @@ macro_rules! bench_mod {
     }};
 }
 
-bench_mod!(hashmap, HashMap);
+bench_mod!(hhkkvv, HashMap2Unzip);
 bench_mod!(hhkvkv, HashMap2);
