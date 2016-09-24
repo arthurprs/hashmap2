@@ -24,9 +24,9 @@ use self::BucketState::*;
 const EMPTY_BUCKET: u64 = 0;
 
 /// The raw hashtable, providing safe-ish access to the unzipped and highly
-/// optimized arrays of hashes, keys, and values.
+/// optimized arrays of hashes, and key-value pairs.
 ///
-/// This design uses less memory and is a lot faster than the naive
+/// This design uses is a lot faster than the naive
 /// `Vec<Option<u64, K, V>>`, because we don't pay for the overhead of an
 /// option on every element, and we get a generally more cache-aware design.
 ///
@@ -48,12 +48,14 @@ const EMPTY_BUCKET: u64 = 0;
 ///     which will likely map to the same bucket, while not being confused
 ///     with "empty".
 ///
-///   - All three "arrays represented by pointers" are the same length:
+///   - All two "arrays represented by pointers" are the same length:
 ///     `capacity`. This is set at creation and never changes. The arrays
-///     are unzipped to save space (we don't have to pay for the padding
-///     between odd sized elements, such as in a map from u64 to u8), and
-///     be more cache aware (scanning through 8 hashes brings in at most
-///     2 cache lines, since they're all right beside each other).
+///     are unzipped and are more cache aware (scanning through 8 hashes
+///     brings in at most 2 cache lines, since they're all right beside each
+///     other). This layout may waste space in padding such as in a map from
+///     u64 to u8, but is a more cache conscious layout as the key-value pairs
+///     are only very shortly probed and the desired value will be in the same
+///     or next cache line.
 ///
 /// You can kind of think of this module/data structure as a safe wrapper
 /// around just the "table" part of the hashtable. It enforces some
@@ -74,7 +76,8 @@ unsafe impl<K: Sync, V: Sync> Sync for RawTable<K, V> {}
 
 struct RawBucket<K, V> {
     hash: *mut u64,
-    pair: *mut (K, V),
+    // We use *const to ensure covariance with respect to K and V
+    pair: *const (K, V),
     _marker: marker::PhantomData<(K, V)>,
 }
 
@@ -366,7 +369,7 @@ impl<K, V, M> EmptyBucket<K, V, M>
     pub fn put(mut self, hash: SafeHash, key: K, value: V) -> FullBucket<K, V, M> {
         unsafe {
             *self.raw.hash = hash.inspect();
-            ptr::write(self.raw.pair, (key, value));
+            ptr::write(self.raw.pair as *mut (K, V), (key, value));
 
             self.table.borrow_table_mut().size += 1;
         }
@@ -462,7 +465,7 @@ impl<K, V, M> FullBucket<K, V, M>
     pub fn replace(&mut self, h: SafeHash, k: K, v: V) -> (SafeHash, K, V) {
         unsafe {
             let old_hash = ptr::replace(self.raw.hash as *mut SafeHash, h);
-            let (old_key, old_val) = ptr::replace(self.raw.pair, (k, v));
+            let (old_key, old_val) = ptr::replace(self.raw.pair as *mut (K, V), (k, v));
 
             (old_hash, old_key, old_val)
         }
@@ -474,7 +477,8 @@ impl<K, V, M> FullBucket<K, V, M>
 {
     /// Gets mutable references to the key and value at a given index.
     pub fn read_mut(&mut self) -> (&mut K, &mut V) {
-        unsafe { (&mut (*self.raw.pair).0, &mut (*self.raw.pair).1) }
+        let pair_mut = self.raw.pair as *mut (K, V);
+        unsafe { (&mut (*pair_mut).0, &mut (*pair_mut).1) }
     }
 }
 
@@ -497,7 +501,8 @@ impl<'t, K, V, M> FullBucket<K, V, M>
     /// This works similarly to `into_refs`, exchanging a bucket state
     /// for mutable references into the table.
     pub fn into_mut_refs(self) -> (&'t mut K, &'t mut V) {
-        unsafe { (&mut (*self.raw.pair).0, &mut (*self.raw.pair).1) }
+        let pair_mut = self.raw.pair as *mut (K, V);
+        unsafe { (&mut (*pair_mut).0, &mut (*pair_mut).1) }
     }
 }
 
@@ -512,7 +517,7 @@ impl<K, V, M> GapThenFull<K, V, M>
     pub fn shift(mut self) -> Option<GapThenFull<K, V, M>> {
         unsafe {
             *self.gap.raw.hash = mem::replace(&mut *self.full.raw.hash, EMPTY_BUCKET);
-            ptr::copy_nonoverlapping(self.full.raw.pair, self.gap.raw.pair, 1);
+            ptr::copy_nonoverlapping(self.full.raw.pair, self.gap.raw.pair as *mut (K, V), 1);
         }
 
         let FullBucket { raw: prev_raw, idx: prev_idx, .. } = self.full;
@@ -658,7 +663,7 @@ impl<K, V> RawTable<K, V> {
         unsafe {
             RawBucket {
                 hash: *self.hashes,
-                pair: buffer.offset(keys_offset as isize) as *mut _,
+                pair: buffer.offset(keys_offset as isize) as *const _,
                 _marker: marker::PhantomData,
             }
         }
@@ -908,7 +913,8 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
     fn next(&mut self) -> Option<(&'a K, &'a mut V)> {
         self.iter.next().map(|bucket| {
             self.elems_left -= 1;
-            unsafe { (&(*bucket.pair).0, &mut (*bucket.pair).1) }
+            let pair_mut = bucket.pair as *mut (K, V);
+            unsafe { (&(*pair_mut).0, &mut (*pair_mut).1) }
         })
     }
 
@@ -994,7 +1000,7 @@ impl<K: Clone, V: Clone> Clone for RawTable<K, V> {
                                 (full.hash(), k.clone(), v.clone())
                             };
                             *new_buckets.raw.hash = h.inspect();
-                            ptr::write(new_buckets.raw.pair, (k, v));
+                            ptr::write(new_buckets.raw.pair as *mut (K, V), (k, v));
                         }
                         Empty(..) => {
                             *new_buckets.raw.hash = EMPTY_BUCKET;
