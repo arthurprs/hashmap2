@@ -162,6 +162,18 @@ macro_rules! bench_mod {
             });
         }
 
+        #[bench]
+        fn iter_keys_big_value_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = $hashmap::with_capacity(c);
+            for x in 0..c {
+                map.insert(x, [0u64; 10]);
+            }
+            b.iter(|| {
+                map.values().map(|a| a[0]).sum::<u64>()
+            });
+        }
+
         fn shuffled_keys<I>(iter: I) -> Vec<I::Item>
             where I: IntoIterator
         {
@@ -272,7 +284,7 @@ macro_rules! bench_mod {
         }
 
         #[bench]
-        fn lookup_10_000_multi(b: &mut Bencher) {
+        fn lookup_10_000(b: &mut Bencher) {
             let map = &*HMAP_10K;
             b.iter(|| {
                 let mut found = 0;
@@ -284,7 +296,7 @@ macro_rules! bench_mod {
         }
 
         #[bench]
-        fn lookup_100_000_multi(b: &mut Bencher) {
+        fn lookup_100_000(b: &mut Bencher) {
             let map = &*HMAP_100K;
             b.iter(|| {
                 let mut found = 0;
@@ -296,7 +308,7 @@ macro_rules! bench_mod {
         }
 
         #[bench]
-        fn lookup_1_000_000_multi(b: &mut Bencher) {
+        fn lookup_1_000_000(b: &mut Bencher) {
             let map = &*HMAP_1M;
             b.iter(|| {
                 let mut found = 0;
@@ -310,7 +322,7 @@ macro_rules! bench_mod {
 
 
         #[bench]
-        fn lookup_10_000_multi_bigvalue(b: &mut Bencher) {
+        fn lookup_10_000_bigvalue(b: &mut Bencher) {
             let map = &*HMAP_10K_BIG;
             b.iter(|| {
                 let mut found = 0;
@@ -322,7 +334,7 @@ macro_rules! bench_mod {
         }
 
         #[bench]
-        fn lookup_100_000_multi_bigvalue(b: &mut Bencher) {
+        fn lookup_100_000_bigvalue(b: &mut Bencher) {
             let map = &*HMAP_100K_BIG;
             b.iter(|| {
                 let mut found = 0;
@@ -334,7 +346,7 @@ macro_rules! bench_mod {
         }
 
         #[bench]
-        fn lookup_1_000_000_multi_bigvalue(b: &mut Bencher) {
+        fn lookup_1_000_000_bigvalue(b: &mut Bencher) {
             let map = &*HMAP_1M_BIG;
             b.iter(|| {
                 let mut found = 0;
@@ -353,6 +365,18 @@ macro_rules! bench_mod {
                 let mut map = $hashmap::new();
                 for x in 0..c {
                     map.insert(x, x);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn grow_big_value_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::new();
+                for x in 0..c {
+                    map.insert(x, [0u64; 10]);
                 }
                 map
             });
@@ -400,6 +424,6 @@ macro_rules! bench_mod {
     }};
 }
 
-bench_mod!(hkvhkv, HashMap2Zip);
+// bench_mod!(hkvhkv, HashMap2Zip);
 bench_mod!(hhkkvv, HashMap2Unzip);
 bench_mod!(hhkvkv, HashMap2);
