@@ -367,7 +367,18 @@ macro_rules! bench_mod {
             });
         }
 
-
+        #[bench]
+        fn lookup_1_000_000_unif(b: &mut Bencher) {
+            let map = &*HMAP_1M;
+            let mut keys = (0..map.len()).cycle();
+            b.iter(|| {
+                let mut found = 0;
+                for key in keys.by_ref().take(LOOKUP_SAMPLE_SIZE) {
+                    found += *map.get(&key).unwrap();
+                }
+                found
+            });
+        }
 
         #[bench]
         fn lookup_10_000_bigvalue(b: &mut Bencher) {
@@ -375,7 +386,8 @@ macro_rules! bench_mod {
             b.iter(|| {
                 let mut found = 0;
                 for key in 0..LOOKUP_SAMPLE_SIZE {
-                    found += map.get(&key).unwrap()[0];
+                    let f = map.get(&key).unwrap();
+                    found += f[f.len() / 2];
                 }
                 found
             });
@@ -387,7 +399,8 @@ macro_rules! bench_mod {
             b.iter(|| {
                 let mut found = 0;
                 for key in 0..LOOKUP_SAMPLE_SIZE {
-                    found += map.get(&key).unwrap()[0];
+                    let f = map.get(&key).unwrap();
+                    found += f[f.len() / 2];
                 }
                 found
             });
@@ -399,7 +412,22 @@ macro_rules! bench_mod {
             b.iter(|| {
                 let mut found = 0;
                 for key in 0..LOOKUP_SAMPLE_SIZE {
-                    found += map.get(&key).unwrap()[0];
+                    let f = map.get(&key).unwrap();
+                    found += f[f.len() / 2];
+                }
+                found
+            });
+        }
+
+        #[bench]
+        fn lookup_1_000_000_bigvalue_unif(b: &mut Bencher) {
+            let map = &*HMAP_1M_BIG;
+            let mut keys = (0..map.len()).cycle();
+            b.iter(|| {
+                let mut found = 0;
+                for key in keys.by_ref().take(LOOKUP_SAMPLE_SIZE) {
+                    let f = map.get(&key).unwrap();
+                    found += f[f.len() / 2];
                 }
                 found
             });
