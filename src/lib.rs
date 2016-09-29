@@ -8,6 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 #![feature(
+    thread_local,
     alloc,
     core_intrinsics,
     dropck_parametricity,
@@ -47,6 +48,14 @@ use table::BucketState::{Empty, Full};
 
 const INITIAL_LOG2_CAP: usize = 5;
 const INITIAL_CAPACITY: usize = 1 << INITIAL_LOG2_CAP; // 2^5
+
+
+#[thread_local]
+pub static mut _INSERT_DISPLACED: usize = 0;
+#[thread_local]
+pub static mut _LOOKUP_PROBED_KEYS: usize = 0;
+#[thread_local]
+pub static mut _LOOKUP_PROBED_HASHES: usize = 0;
 
 /// The default behavior of HashMap implements a load factor of 90.9%.
 /// This behavior is characterized by the following condition:
@@ -354,6 +363,10 @@ fn search_hashed<K, V, M, F>(table: M, hash: SafeHash, mut is_match: F) -> Inter
     where M: Deref<Target = RawTable<K, V>>,
           F: FnMut(&K) -> bool
 {
+    unsafe {
+        _LOOKUP_PROBED_KEYS = 0;
+        _LOOKUP_PROBED_HASHES = 0;
+    }
     // This is the only function where capacity can be zero. To avoid
     // undefined behavior when Bucket::new gets the raw bucket in this
     // case, immediately return the appropriate search result.
@@ -366,6 +379,9 @@ fn search_hashed<K, V, M, F>(table: M, hash: SafeHash, mut is_match: F) -> Inter
     let ib = probe.index() as isize;
 
     loop {
+        unsafe {
+            _LOOKUP_PROBED_HASHES += 1;
+        }
         let full = match probe.peek() {
             Empty(bucket) => {
                 // Found a hole!
@@ -391,6 +407,9 @@ fn search_hashed<K, V, M, F>(table: M, hash: SafeHash, mut is_match: F) -> Inter
 
         // If the hash doesn't match, it can't be this one..
         if hash == full.hash() {
+            unsafe {
+                _LOOKUP_PROBED_KEYS += 1;
+            }
             // If the key doesn't match, it can't be this one..
             if is_match(full.read().0) {
                 return InternalEntry::Occupied { elem: full };
@@ -443,7 +462,10 @@ fn robin_hood<'a, K: 'a, V: 'a>(bucket: FullBucketMut<'a, K, V>,
     // `displacement` buckets away from the initial one.
     let idx_end = starting_index + size - bucket.displacement();
 
+    unsafe { _INSERT_DISPLACED = 0 };
+
     loop {
+        unsafe { _INSERT_DISPLACED += 1 };
         let (old_hash, old_key, old_val) = bucket.replace(hash, key, val);
         hash = old_hash;
         key = old_key;
@@ -1711,7 +1733,10 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
     pub fn insert(self, value: V) -> &'a mut V {
         match self.elem {
             NeqElem(bucket, ib) => robin_hood(bucket, ib, self.hash, self.key, value),
-            NoElem(bucket) => bucket.put(self.hash, self.key, value).into_mut_refs().1,
+            NoElem(bucket) => {
+                unsafe { _INSERT_DISPLACED = 0 };
+                bucket.put(self.hash, self.key, value).into_mut_refs().1
+            },
         }
     }
 
@@ -2616,5 +2641,94 @@ mod test_map {
 
         assert_eq!(k, "foo");
         assert_eq!(v, 1);
+    }
+
+    #[test]
+    fn test_probe_lengths() {
+        extern crate histogram;
+        use super::{_LOOKUP_PROBED_HASHES, _LOOKUP_PROBED_KEYS, _INSERT_DISPLACED};
+
+        macro_rules! print_hist {
+            ($h: ident) => (
+                println!("Histogram {}: Min: {:?} Avg: {:?} Max: {:?} StdDev: {:?} Median: {:?} 95pct: {:?} 99pct: {:?}",
+                    stringify!($h),
+                    $h.minimum(),
+                    $h.mean(),
+                    $h.maximum(),
+                    $h.stddev(),
+                    $h.percentile(50.0),
+                    $h.percentile(95.0),
+                    $h.percentile(99.0),
+                )
+            );
+        }
+
+        unsafe {
+            let mut hist_h = histogram::Histogram::configure().max_value(2000).precision(4).build().unwrap();
+            let mut hist_k = hist_h.clone();
+            let mut hist_d = hist_k.clone();
+            let n = 1_000_000;
+            let mut hm: HashMap<_, _> = (0..n).map(|i| (i, ())).collect();
+            for i in n..n*2 {
+                assert!(hm.insert(i, ()).is_none());
+                if _INSERT_DISPLACED == 0 {
+                    _INSERT_DISPLACED = 1;
+                }
+                let _ = hist_d.increment(_INSERT_DISPLACED as u64);
+            }
+            for i in 0..n/10 {
+                hm.get(&i).unwrap();
+                let _ = hist_h.increment(_LOOKUP_PROBED_HASHES as u64);
+                let _ = hist_k.increment(_LOOKUP_PROBED_KEYS as u64);
+            }
+            println!("HM len {}, cap{}", hm.len(), hm.capacity());
+            print_hist!(hist_h);
+            print_hist!(hist_k);
+            print_hist!(hist_d);
+        }
+
+        unsafe {
+            let mut hist_h = histogram::Histogram::configure().max_value(5_000).precision(4).build().unwrap();
+            let mut hist_k = hist_h.clone();
+            let mut hist_d = hist_k.clone();
+            let n = 5_000_000;
+            let mut hm: HashMap<_, _> = (0..n).map(|i| (i, ())).collect();
+            for i in n..n*2 {
+                assert!(hm.insert(i, ()).is_none());
+                if _INSERT_DISPLACED == 0 {
+                    _INSERT_DISPLACED = 1;
+                }
+                let _ = hist_d.increment(_INSERT_DISPLACED as u64);
+            }
+            for i in 0..n/10 {
+                hm.get(&i).unwrap();
+                let _ = hist_h.increment(_LOOKUP_PROBED_HASHES as u64);
+                let _ = hist_k.increment(_LOOKUP_PROBED_KEYS as u64);
+            }
+            println!("HM len {}, cap{}", hm.len(), hm.capacity());
+            print_hist!(hist_h);
+            print_hist!(hist_k);
+            print_hist!(hist_d);
+        }
+
+        unsafe {
+            let mut hist_h = histogram::Histogram::configure().max_value(10_000).precision(4).build().unwrap();
+            let mut hist_d = hist_h.clone();
+            let MERGE = 10_000;
+            let first_map: HashMap<_, _> = (0..MERGE).map(|i| (i, ())).collect();
+            let second_map: HashMap<_, _> = (MERGE..MERGE * 2).map(|i| (i, ())).collect();
+            let mut merged = first_map.clone();
+            for (k, v) in second_map {
+                merged.insert(k, v);
+                let _ = hist_h.increment(_LOOKUP_PROBED_HASHES as u64);
+                if _INSERT_DISPLACED == 0 {
+                    _INSERT_DISPLACED = 1;
+                }
+                let _ = hist_d.increment(_INSERT_DISPLACED as u64);
+            }
+            println!("Merged map len {}, cap{}", merged.len(), merged.capacity());
+            print_hist!(hist_h);
+            print_hist!(hist_d);
+        }
     }
 }
