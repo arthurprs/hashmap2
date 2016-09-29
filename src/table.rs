@@ -21,13 +21,13 @@ use std::ptr::{self, Unique, Shared};
 
 use self::BucketState::*;
 
-const EMPTY_BUCKET: u64 = 0;
+const EMPTY_BUCKET: usize = 0;
 
 /// The raw hashtable, providing safe-ish access to the unzipped and highly
 /// optimized arrays of hashes, and key-value pairs.
 ///
 /// This design uses is a lot faster than the naive
-/// `Vec<Option<u64, K, V>>`, because we don't pay for the overhead of an
+/// `Vec<Option<usize, K, V>>`, because we don't pay for the overhead of an
 /// option on every element, and we get a generally more cache-aware design.
 ///
 /// Essential invariants of this structure:
@@ -53,18 +53,18 @@ const EMPTY_BUCKET: u64 = 0;
 ///     are unzipped and are more cache aware (scanning through 8 hashes
 ///     brings in at most 2 cache lines, since they're all right beside each
 ///     other). This layout may waste space in padding such as in a map from
-///     u64 to u8, but is a more cache conscious layout as the key-value pairs
+///     usize to u8, but is a more cache conscious layout as the key-value pairs
 ///     are only very shortly probed and the desired value will be in the same
 ///     or next cache line.
 ///
 /// You can kind of think of this module/data structure as a safe wrapper
 /// around just the "table" part of the hashtable. It enforces some
 /// invariants at the type level and employs some performance trickery,
-/// but in general is just a tricked out `Vec<Option<u64, K, V>>`.
+/// but in general is just a tricked out `Vec<Option<usize, K, V>>`.
 pub struct RawTable<K, V> {
     capacity: usize,
     size: usize,
-    hashes: Unique<u64>,
+    hashes: Unique<usize>,
 
     // Because K/V do not appear directly in any of the types in the struct,
     // inform rustc that in fact instances of K and V are reachable from here.
@@ -75,7 +75,7 @@ unsafe impl<K: Send, V: Send> Send for RawTable<K, V> {}
 unsafe impl<K: Sync, V: Sync> Sync for RawTable<K, V> {}
 
 struct RawBucket<K, V> {
-    hash: *mut u64,
+    hash: *mut usize,
     // We use *const to ensure covariance with respect to K and V
     pair: *const (K, V),
     _marker: marker::PhantomData<(K, V)>,
@@ -136,13 +136,13 @@ pub struct GapThenFull<K, V, M> {
 /// buckets.
 #[derive(PartialEq, Copy, Clone)]
 pub struct SafeHash {
-    hash: u64,
+    hash: usize,
 }
 
 impl SafeHash {
     /// Peek at the hash value, which is guaranteed to be non-zero.
     #[inline(always)]
-    pub fn inspect(&self) -> u64 {
+    pub fn inspect(&self) -> usize {
         self.hash
     }
 }
@@ -160,21 +160,21 @@ pub fn make_hash<T: ?Sized, S>(hash_state: &S, t: &T) -> SafeHash
     // EMPTY_HASH. We can maintain our precious uniform distribution
     // of initial indexes by unconditionally setting the MSB,
     // effectively reducing 64-bits hashes to 63 bits.
-    SafeHash { hash: 0x8000_0000_0000_0000 | state.finish() }
+    SafeHash { hash: 0x8000_0000usize | (state.finish() as usize) }
 }
 
-// `replace` casts a `*u64` to a `*SafeHash`. Since we statically
+// `replace` casts a `*usize` to a `*SafeHash`. Since we statically
 // ensure that a `FullBucket` points to an index with a non-zero hash,
-// and a `SafeHash` is just a `u64` with a different name, this is
+// and a `SafeHash` is just a `usize` with a different name, this is
 // safe.
 //
 // This test ensures that a `SafeHash` really IS the same size as a
-// `u64`. If you need to change the size of `SafeHash` (and
+// `usize`. If you need to change the size of `SafeHash` (and
 // consequently made this test fail), `replace` needs to be
 // modified to no longer assume this.
 #[test]
-fn can_alias_safehash_as_u64() {
-    assert_eq!(size_of::<SafeHash>(), size_of::<u64>())
+fn can_alias_safehash_as_usize() {
+    assert_eq!(size_of::<SafeHash>(), size_of::<usize>())
 }
 
 impl<K, V> RawBucket<K, V> {
@@ -605,14 +605,14 @@ impl<K, V> RawTable<K, V> {
             return RawTable {
                 size: 0,
                 capacity: 0,
-                hashes: Unique::new(EMPTY as *mut u64),
+                hashes: Unique::new(EMPTY as *mut usize),
                 marker: marker::PhantomData,
             };
         }
 
         // No need for `checked_mul` before a more restrictive check performed
         // later in this method.
-        let hashes_size = capacity * size_of::<u64>();
+        let hashes_size = capacity * size_of::<usize>();
         let keys_size = capacity * size_of::<(K, V)>();
 
         // Allocating hashmaps is a little tricky. We need to allocate three
@@ -624,14 +624,14 @@ impl<K, V> RawTable<K, V> {
         // right is a little subtle. Therefore, calculating offsets has been
         // factored out into a different function.
         let (malloc_alignment, hash_offset, size, oflo) = calculate_allocation(hashes_size,
-                                                                               align_of::<u64>(),
+                                                                               align_of::<usize>(),
                                                                                keys_size,
                                                                                align_of::<(K,
                                                                                            V)>());
         assert!(!oflo, "capacity overflow");
 
         // One check for overflow that covers calculation and rounding of size.
-        let size_of_bucket = size_of::<u64>().checked_add(size_of::<(K, V)>()).unwrap();
+        let size_of_bucket = size_of::<usize>().checked_add(size_of::<(K, V)>()).unwrap();
         assert!(size >=
                 capacity.checked_mul(size_of_bucket)
                     .expect("capacity overflow"),
@@ -642,7 +642,7 @@ impl<K, V> RawTable<K, V> {
             ::alloc::oom()
         }
 
-        let hashes = buffer.offset(hash_offset as isize) as *mut u64;
+        let hashes = buffer.offset(hash_offset as isize) as *mut usize;
 
         RawTable {
             capacity: capacity,
@@ -653,7 +653,7 @@ impl<K, V> RawTable<K, V> {
     }
 
     fn first_bucket_raw(&self) -> RawBucket<K, V> {
-        let hashes_size = self.capacity * size_of::<u64>();
+        let hashes_size = self.capacity * size_of::<usize>();
         let keys_size = self.capacity * size_of::<(K, V)>();
 
         let buffer = *self.hashes as *mut u8;
@@ -757,7 +757,7 @@ impl<K, V> RawTable<K, V> {
 /// this interface is safe, it's not used outside this module.
 struct RawBuckets<'a, K, V> {
     raw: RawBucket<K, V>,
-    hashes_end: *mut u64,
+    hashes_end: *mut usize,
 
     // Strictly speaking, this should be &'a (K,V), but that would
     // require that K:'a, and we often use RawBuckets<'static...> for
@@ -803,7 +803,7 @@ impl<'a, K, V> Iterator for RawBuckets<'a, K, V> {
 /// the table's remaining entries. It's used in the implementation of Drop.
 struct RevMoveBuckets<'a, K, V> {
     raw: RawBucket<K, V>,
-    hashes_end: *mut u64,
+    hashes_end: *mut usize,
     elems_left: usize,
 
     // As above, `&'a (K,V)` would seem better, but we often use
@@ -1037,10 +1037,10 @@ impl<K, V> Drop for RawTable<K, V> {
             }
         }
 
-        let hashes_size = self.capacity * size_of::<u64>();
+        let hashes_size = self.capacity * size_of::<usize>();
         let keys_size = self.capacity * size_of::<(K, V)>();
         let (align, _, size, oflo) = calculate_allocation(hashes_size,
-                                                          align_of::<u64>(),
+                                                          align_of::<usize>(),
                                                           keys_size,
                                                           align_of::<(K, V)>());
 
