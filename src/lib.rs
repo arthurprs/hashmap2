@@ -24,8 +24,7 @@ extern crate rand;
 
 mod recover;
 mod table;
-pub mod unzip;
-pub mod zip;
+pub mod adapt;
 
 use self::Entry::*;
 use self::VacantEntryState::*;
@@ -36,7 +35,7 @@ use std::default::Default;
 use std::fmt::{self, Debug};
 use std::hash::{BuildHasher, Hash, SipHasher13 as SipHasher};
 use std::iter::{self, Iterator, ExactSizeIterator, IntoIterator, FromIterator, Extend, Map};
-use std::mem::{self, replace};
+use std::mem::{self, replace, forget};
 use std::ops::{Deref, FnMut, FnOnce, Index};
 use std::option::Option::{Some, None};
 use rand::Rng;
@@ -361,9 +360,8 @@ fn search_hashed<K, V, M, F>(table: M, hash: SafeHash, mut is_match: F) -> Inter
         return InternalEntry::TableIsEmpty;
     }
 
-    let size = table.size() as isize;
     let mut probe = Bucket::new(table, hash);
-    let ib = probe.index() as isize;
+    let mut displacement = 0;
 
     loop {
         let full = match probe.peek() {
@@ -377,15 +375,15 @@ fn search_hashed<K, V, M, F>(table: M, hash: SafeHash, mut is_match: F) -> Inter
             Full(bucket) => bucket,
         };
 
-        let robin_ib = full.index() as isize - full.displacement() as isize;
+        let probe_displacement = full.displacement();
 
-        if ib < robin_ib {
+        if probe_displacement < displacement {
             // Found a luckier bucket than me.
             // We can finish the search early if we hit any bucket
             // with a lower distance to initial bucket than we've probed.
             return InternalEntry::Vacant {
                 hash: hash,
-                elem: NeqElem(full, robin_ib as usize),
+                elem: NeqElem(full, probe_displacement),
             };
         }
 
@@ -397,8 +395,8 @@ fn search_hashed<K, V, M, F>(table: M, hash: SafeHash, mut is_match: F) -> Inter
             }
         }
 
+        displacement += 1;
         probe = full.next();
-        debug_assert!(probe.index() as isize != ib + size + 1);
     }
 }
 
@@ -421,12 +419,12 @@ fn pop_internal<K, V>(starting_bucket: FullBucketMut<K, V>) -> (K, V) {
 }
 
 /// Perform robin hood bucket stealing at the given `bucket`. You must
-/// also pass the position of that bucket's initial bucket so we don't have
+/// also pass the position of that bucket's displacement so we don't have
 /// to recalculate it.
 ///
 /// `hash`, `k`, and `v` are the elements to "robin hood" into the hashtable.
 fn robin_hood<'a, K: 'a, V: 'a>(bucket: FullBucketMut<'a, K, V>,
-                                mut ib: usize,
+                                mut displacement: usize,
                                 mut hash: SafeHash,
                                 mut key: K,
                                 mut val: V)
@@ -450,6 +448,7 @@ fn robin_hood<'a, K: 'a, V: 'a>(bucket: FullBucketMut<'a, K, V>,
         val = old_val;
 
         loop {
+            displacement += 1;
             let probe = bucket.next();
             debug_assert!(probe.index() != idx_end);
 
@@ -469,13 +468,12 @@ fn robin_hood<'a, K: 'a, V: 'a>(bucket: FullBucketMut<'a, K, V>,
                 Full(bucket) => bucket,
             };
 
-            let probe_ib = full_bucket.index() - full_bucket.displacement();
-
+            let probe_displacement = full_bucket.displacement();
             bucket = full_bucket;
 
             // Robin hood! Steal the spot.
-            if ib < probe_ib {
-                ib = probe_ib;
+            if probe_displacement < displacement {
+                displacement = probe_displacement;
                 break;
             }
         }
@@ -515,11 +513,9 @@ impl<K, V, S> HashMap<K, V, S>
 
     // The caller should ensure that invariants by Robin Hood Hashing hold.
     fn insert_hashed_ordered(&mut self, hash: SafeHash, k: K, v: V) {
-        let cap = self.table.capacity();
         let mut buckets = Bucket::new(&mut self.table, hash);
-        let ib = buckets.index();
 
-        while buckets.index() != ib + cap {
+        loop {
             // We don't need to compare hashes for value swap.
             // Not even DIBs for Robin Hood.
             buckets = match buckets.peek() {
@@ -531,7 +527,6 @@ impl<K, V, S> HashMap<K, V, S>
             };
             buckets.next();
         }
-        panic!("Internal HashMap error: Out of space.");
     }
 }
 
@@ -938,38 +933,6 @@ impl<K, V, S> HashMap<K, V, S>
         self.search_mut(&key).into_entry(key).expect("unreachable")
     }
 
-    /// Gets the given key's corresponding entry in the map for in-place
-    /// manipulation. Only copies the key if a new entry is inserted.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use hashmap2::HashMap;
-    /// use std::borrow::Cow;
-    ///
-    /// let mut m = HashMap::new();
-    ///
-    /// m.entry2(Cow::Owned("foo".to_string()) as Cow<str>).or_insert(0);
-    /// m.entry2(Cow::Borrowed("bar")).or_insert(1);
-    ///
-    /// assert_eq!(m["foo"], 0);
-    /// assert_eq!(m["bar"], 1);
-    /// ```
-    pub fn entry2<'a, Q: ?Sized>(&mut self, key: Cow<'a, Q>) -> Entry<K, V>
-        where K: Clone + Borrow<Q>,
-              Q: 'a + ToOwned<Owned = K> + Hash + Eq
-    {
-        // Gotta resize now.
-        self.reserve(1);
-
-        let hash = {
-            let b: &Q = key.borrow();
-            self.make_hash(b)
-        };
-
-        search_entry_hashed2(&mut self.table, hash, key)
-    }
-
     /// Returns the number of elements in the map.
     ///
     /// # Examples
@@ -1206,61 +1169,6 @@ impl<K, V, S> HashMap<K, V, S>
         }
 
         self.search_mut(k).into_occupied_bucket().map(|bucket| pop_internal(bucket))
-    }
-}
-
-// Not copying this requires specialization
-fn search_entry_hashed2<'a, K: Eq, V, Q: ?Sized>(table: &'a mut RawTable<K, V>,
-                                                 hash: SafeHash,
-                                                 k: Cow<Q>)
-                                                 -> Entry<'a, K, V>
-    where K: Borrow<Q>,
-          Q: ToOwned<Owned = K> + Eq
-{
-    // Worst case, we'll find one empty bucket among `size + 1` buckets.
-    let size = table.size() as isize;
-    let mut probe = Bucket::new(table, hash);
-    let ib = probe.index() as isize;
-
-    loop {
-        let bucket = match probe.peek() {
-            Empty(bucket) => {
-                // Found a hole!
-                return Vacant(VacantEntry {
-                    hash: hash,
-                    key: k.into_owned(),
-                    elem: NoElem(bucket),
-                });
-            }
-            Full(bucket) => bucket,
-        };
-
-        // hash matches?
-        if bucket.hash() == hash {
-            let b: &Q = k.borrow();
-
-            // key matches?
-            if *b == *bucket.read().0.borrow() {
-                return Occupied(OccupiedEntry {
-                    key: None,
-                    elem: bucket,
-                });
-            }
-        }
-
-        let robin_ib = bucket.index() as isize - bucket.displacement() as isize;
-
-        if ib < robin_ib {
-            // Found a luckier bucket than me. Better steal his spot.
-            return Vacant(VacantEntry {
-                hash: hash,
-                key: k.into_owned(),
-                elem: NeqElem(bucket, robin_ib as usize),
-            });
-        }
-
-        probe = bucket.next();
-        debug_assert!(probe.index() as isize != ib + size + 1);
     }
 }
 
