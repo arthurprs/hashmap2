@@ -34,6 +34,7 @@ macro_rules! bench_mod {
 
 
         // number of items to look up
+
         const LOOKUP_SAMPLE_SIZE: usize = 5000;
 
 
@@ -76,18 +77,17 @@ macro_rules! bench_mod {
             });
         }
 
-        #[bench]
-        fn lookup_1_000_000(b: &mut Bencher) {
-            let map = &*HMAP_1M;
-            b.iter(|| {
-                let mut found = 0;
-                for key in 0..LOOKUP_SAMPLE_SIZE {
-                    found += *map.get(&key).unwrap();
-                }
-                found
-            });
-        }
-
+        // #[bench]
+        // fn lookup_1_000_000(b: &mut Bencher) {
+        //     let map = &*HMAP_1M;
+        //     b.iter(|| {
+        //         let mut found = 0;
+        //         for key in 0..LOOKUP_SAMPLE_SIZE {
+        //             found += *map.get(&key).unwrap();
+        //         }
+        //         found
+        //     });
+        // }
 
         #[bench]
         fn lookup_100_000_unif(b: &mut Bencher) {
@@ -114,7 +114,6 @@ macro_rules! bench_mod {
                 found
             });
         }
-
         // without preallocation
         #[bench]
         fn grow_10_000(b: &mut Bencher) {
@@ -130,6 +129,18 @@ macro_rules! bench_mod {
 
         #[bench]
         fn grow_100_000(b: &mut Bencher) {
+            let c = 100_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::new();
+                for x in 0..c {
+                    map.insert(x, x);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn _warmup(b: &mut Bencher) {
             let c = 100_000usize;
             b.iter(|| {
                 let mut map = $hashmap::new();
@@ -212,8 +223,109 @@ macro_rules! bench_mod {
                 ::test::black_box(merged);
             });
         }
+
+
+        #[bench]
+        fn insert_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, x);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn insert_string_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let ss = Vec::from_iter((0..c).map(|x| x.to_string()));
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for key in &ss {
+                    map.insert(key.clone(), 0usize);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn insert_str_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let ss = Vec::from_iter((0..c).map(|x| x.to_string()));
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for key in &ss {
+                    map.insert(&key[..], 0usize);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn insert_int_bigvalue_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let value = [0u64; 10];
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for i in 0..c {
+                    map.insert(i, value);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn insert_100_000(b: &mut Bencher) {
+            let c = 100_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, x);
+                }
+                map
+            });
+        }
+
+        #[bench]
+        fn insert_1_000_000(b: &mut Bencher) {
+            let c = 1_000_000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, x);
+                }
+                map
+            });
+        }
+
+        // #[bench]
+        // fn insert_100(b: &mut Bencher) {
+        //     let c = 100usize;
+        //     b.iter(|| {
+        //         let mut map = $hashmap::with_capacity(c);
+        //         for x in 0..c {
+        //             map.insert(x, x);
+        //         }
+        //         map
+        //     });
+        // }
+
+        #[bench]
+        fn insert_1000(b: &mut Bencher) {
+            let c = 1000usize;
+            b.iter(|| {
+                let mut map = $hashmap::with_capacity(c);
+                for x in 0..c {
+                    map.insert(x, x);
+                }
+                map
+            });
+        }
+
     }};
 }
 
-bench_mod!(_91, HashMap2);
-bench_mod!(_ad, AdaptHashMap2);
+bench_mod!(pre, HashMap2);
+bench_mod!(adp, AdaptHashMap2);

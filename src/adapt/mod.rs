@@ -1,25 +1,8 @@
-#![feature(
-    alloc,
-    core_intrinsics,
-    generic_param_attrs,
-    dropck_eyepatch,
-    sip_hash_13,
-    heap_api,
-    oom,
-    shared,
-    fused,
-    unique)]
-
-#![cfg_attr(test, feature(inclusive_range_syntax))]
-
-extern crate alloc;
-extern crate rand;
-
-mod recover;
+use rand;
 mod table;
 use recover::Recover;
-pub mod adapt;
 
+//pub mod adapt;
 // Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at
 // http://rust-lang.org/COPYRIGHT.
@@ -44,8 +27,8 @@ use std::mem::{self, replace};
 use std::ops::{Deref, Index};
 use rand::{Rng};
 
-use table::{Bucket, EmptyBucket, FullBucket, FullBucketMut, RawTable, SafeHash};
-use table::BucketState::{Empty, Full};
+use adapt::table::{Bucket, EmptyBucket, FullBucket, FullBucketMut, RawTable, SafeHash};
+use adapt::table::BucketState::{Empty, Full};
 
 const MIN_NONZERO_RAW_CAPACITY: usize = 32;     // must be a power of two
 
@@ -216,7 +199,7 @@ impl DefaultResizePolicy {
 // really bad quality hash algorithms that can make normal inputs look like a
 // DOS attack.
 //
-// const DISPLACEMENT_THRESHOLD: usize = 128;
+const DISPLACEMENT_THRESHOLD: usize = 128;
 //
 // The threshold of 128 is chosen to minimize the chance of exceeding it.
 // In particular, we want that chance to be less than 10^-8 with a load of 90%.
@@ -756,6 +739,11 @@ impl<K, V, S> HashMap<K, V, S>
             let min_cap = self.len().checked_add(additional).expect("reserve overflow");
             let raw_cap = self.resize_policy.raw_capacity(min_cap);
             self.resize(raw_cap);
+        } else if self.table.tag() && remaining <= self.len() {
+            // Probe sequence is too long and table is half full,
+            // resize early to reduce probing length.
+            let new_capacity = self.table.capacity() * 2;
+            self.resize(new_capacity);
         }
     }
 
@@ -2029,10 +2017,16 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
     /// ```
     pub fn insert(self, value: V) -> &'a mut V {
         match self.elem {
-            NeqElem(bucket, disp) => {
+            NeqElem(mut bucket, disp) => {
+                if disp >= DISPLACEMENT_THRESHOLD {
+                    bucket.table_mut().set_tag(true);
+                }
                 robin_hood(bucket, disp, self.hash, self.key, value)
             },
-            NoElem(bucket, _disp) => {
+            NoElem(mut bucket, disp) => {
+                if disp >= DISPLACEMENT_THRESHOLD {
+                    bucket.table_mut().set_tag(true);
+                }
                 bucket.put(self.hash, self.key, value).into_mut_refs().1
             },
         }
