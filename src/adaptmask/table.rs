@@ -113,7 +113,7 @@ impl TaggedHashUintPtr {
 /// when the RawTable is created and is accessible with the `tag` and `set_tag`
 /// functions.
 pub struct RawTable<K, V> {
-    capacity: usize,
+    capacity_mask: usize,
     size: usize,
     hashes: TaggedHashUintPtr,
 
@@ -348,7 +348,7 @@ impl<K, V, M: Deref<Target = RawTable<K, V>>> Bucket<K, V, M> {
         // This is an uncommon case though, so avoid it in release builds.
         debug_assert!(table.capacity() > 0,
                       "Table should have capacity at this point");
-        let ib_index = ib_index & (table.capacity - 1);
+        let ib_index = ib_index & table.capacity_mask;
         Bucket {
             raw: table.raw_bucket(),
             idx: ib_index,
@@ -423,12 +423,12 @@ impl<K, V, M: Deref<Target = RawTable<K, V>>> Bucket<K, V, M> {
 
     /// Modifies the bucket in place to make it point to the next slot.
     pub fn next(&mut self) {
-        self.idx = self.idx.wrapping_add(1) & (self.table.capacity - 1);
+        self.idx = self.idx.wrapping_add(1) & self.table.capacity_mask;
     }
 
     /// Modifies the bucket in place to make it point to the previous slot.
     pub fn prev(&mut self) {
-        self.idx = self.idx.wrapping_sub(1) & (self.table.capacity - 1);
+        self.idx = self.idx.wrapping_sub(1) & self.table.capacity_mask;
     }
 }
 
@@ -530,7 +530,7 @@ impl<K, V, M: Deref<Target = RawTable<K, V>>> FullBucket<K, V, M> {
         // Calculates the distance one has to travel when going from
         // `hash mod capacity` onwards to `idx mod capacity`, wrapping around
         // if the destination is not reached before the end of the table.
-        (self.idx.wrapping_sub(self.hash().inspect() as usize)) & (self.table.capacity - 1)
+        (self.idx.wrapping_sub(self.hash().inspect() as usize)) & self.table.capacity_mask
     }
 
     #[inline]
@@ -732,7 +732,7 @@ impl<K, V> RawTable<K, V> {
         if capacity == 0 {
             return RawTable {
                 size: 0,
-                capacity: capacity,
+                capacity_mask: capacity.wrapping_sub(1),
                 hashes: TaggedHashUintPtr::new(EMPTY as *mut HashUint),
                 marker: marker::PhantomData,
             };
@@ -772,7 +772,7 @@ impl<K, V> RawTable<K, V> {
         let hashes = buffer.offset(hash_offset as isize) as *mut HashUint;
 
         RawTable {
-            capacity: capacity,
+            capacity_mask: capacity.wrapping_sub(1),
             size: 0,
             hashes: TaggedHashUintPtr::new(hashes),
             marker: marker::PhantomData,
@@ -809,7 +809,7 @@ impl<K, V> RawTable<K, V> {
 
     /// The hashtable's capacity, similar to a vector's.
     pub fn capacity(&self) -> usize {
-        self.capacity
+        self.capacity_mask.wrapping_add(1)
     }
 
     /// The number of elements ever `put` in the hashtable, minus the number
