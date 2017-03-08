@@ -475,7 +475,7 @@ fn pop_internal<K, V>(starting_bucket: FullBucketMut<K, V>)
     }
 
     // Now we've done all our shifting. Return the value we grabbed earlier.
-    (retkey, retval, gap.into_table())
+    (retkey, retval, gap.into_bucket().into_table())
 }
 
 /// Perform robin hood bucket stealing at the given `bucket`. You must
@@ -489,8 +489,13 @@ fn robin_hood<'a, K: 'a, V: 'a>(bucket: FullBucketMut<'a, K, V>,
                                 mut val: V)
                                 -> &'a mut V {
     let start_index = bucket.index();
+    let size = bucket.table().size();
     // Save the *starting point*.
     let mut bucket = bucket.stash();
+    // There can be at most `size - dib` buckets to displace, because
+    // in the worst case, there are `size` elements and we already are
+    // `displacement` buckets away from the initial one.
+    let idx_end = start_index + size - bucket.displacement();
 
     loop {
         let (old_hash, old_key, old_val) = bucket.replace(hash, key, val);
@@ -501,7 +506,7 @@ fn robin_hood<'a, K: 'a, V: 'a>(bucket: FullBucketMut<'a, K, V>,
         loop {
             displacement += 1;
             let probe = bucket.next();
-            debug_assert!(probe.index() != start_index);
+            debug_assert!(probe.index() != idx_end);
 
             let full_bucket = match probe.peek() {
                 Empty(bucket) => {
@@ -566,8 +571,11 @@ impl<K, V, S> HashMap<K, V, S>
     // The caller should ensure that invariants by Robin Hood Hashing hold
     // and that there's space in the underlying table.
     fn insert_hashed_ordered(&mut self, hash: SafeHash, k: K, v: V) {
+        let raw_cap = self.raw_capacity();
         let mut buckets = Bucket::new(&mut self.table, hash);
-        let start_index = buckets.index();
+        // note that buckets.index() keeps increasing
+        // even if the pointer wraps back to the first bucket.
+        let limit_bucket = buckets.index() + raw_cap;
 
         loop {
             // We don't need to compare hashes for value swap.
@@ -580,7 +588,7 @@ impl<K, V, S> HashMap<K, V, S>
                 Full(b) => b.into_bucket(),
             };
             buckets.next();
-            debug_assert!(buckets.index() != start_index);
+            debug_assert!(buckets.index() < limit_bucket);
         }
     }
 }
@@ -1230,9 +1238,10 @@ impl<K, V, S> HashMap<K, V, S>
                         !f(k, v)
                     };
                     if should_remove {
+                        let prev_idx = full.index();
                         let prev_raw = full.raw();
                         let (_, _, t) = pop_internal(full);
-                        Bucket::new_from(prev_raw, t)
+                        Bucket::new_from(prev_raw, prev_idx, t)
                     } else {
                         full.into_bucket()
                     }
