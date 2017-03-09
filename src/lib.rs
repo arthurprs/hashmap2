@@ -20,6 +20,7 @@ mod table;
 use recover::Recover;
 pub mod adapt;
 pub mod adaptmask;
+pub mod adapt0;
 
 // Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at

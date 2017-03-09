@@ -18,7 +18,7 @@ macro_rules! bench_mod {
 
         use hashmap2::HashMap as HashMap2;
         use hashmap2::adapt::HashMap as AdaptHashMap2;
-        use hashmap2::adaptmask::HashMap as AdaptHashMap2M;
+        use hashmap2::adapt0::HashMap as AdaptHashMap0;
         use std::collections::HashMap;
         use std::iter::FromIterator;
 
@@ -104,18 +104,18 @@ macro_rules! bench_mod {
         //     });
         // }
         //
-        // #[bench]
-        // fn lookup_1_000_000_unif(b: &mut Bencher) {
-        //     let map = &*HMAP_1M;
-        //     let mut keys = (0..map.len()).cycle();
-        //     b.iter(|| {
-        //         let mut found = 0;
-        //         for key in keys.by_ref().take(LOOKUP_SAMPLE_SIZE) {
-        //             found += *map.get(&key).unwrap();
-        //         }
-        //         found
-        //     });
-        // }
+        #[bench]
+        fn lookup_1_000_000_unif(b: &mut Bencher) {
+            let map = &*HMAP_1M;
+            let mut keys = (0..map.len()).cycle();
+            b.iter(|| {
+                let mut found = 0;
+                for key in keys.by_ref().take(LOOKUP_SAMPLE_SIZE) {
+                    found += *map.get(&key).unwrap();
+                }
+                found
+            });
+        }
         // without preallocation
         #[bench]
         fn grow_10_000(b: &mut Bencher) {
@@ -126,6 +126,18 @@ macro_rules! bench_mod {
                     map.insert(x, x);
                 }
                 map
+            });
+        }
+
+        #[bench]
+        fn clone_10_000(b: &mut Bencher) {
+            let c = 10_000usize;
+            let mut map = $hashmap::new();
+            for x in 0..c {
+                map.insert(x, x);
+            }
+            b.iter(|| {
+                map.clone()
             });
         }
 
@@ -168,7 +180,6 @@ macro_rules! bench_mod {
 
         #[bench]
         fn lru_sim(b: &mut Bencher) {
-            // 2**17 	= 	131,072
             let mut map = $hashmap::with_capacity(100_000usize);
             let c = map.capacity() * 11 / 10;
             for x in 0..c {
@@ -304,18 +315,18 @@ macro_rules! bench_mod {
             });
         }
 
-        #[bench]
-        fn insert_1_000_000(b: &mut Bencher) {
-            let c = 1_000_000usize;
-            b.iter(|| {
-                let mut map = $hashmap::with_capacity(c);
-                let c = map.capacity();
-                for x in 0..c {
-                    map.insert(x, x);
-                }
-                map
-            });
-        }
+        // #[bench]
+        // fn insert_1_000_000(b: &mut Bencher) {
+        //     let c = 1_000_000usize;
+        //     b.iter(|| {
+        //         let mut map = $hashmap::with_capacity(c);
+        //         let c = map.capacity();
+        //         for x in 0..c {
+        //             map.insert(x, x);
+        //         }
+        //         map
+        //     });
+        // }
         //
         // #[bench]
         // fn insert_100(b: &mut Bencher) {
@@ -349,4 +360,4 @@ macro_rules! bench_mod {
 bench_mod!(_11, HashMap2);
 bench_mod!(pre, HashMap2);
 bench_mod!(adp, AdaptHashMap2);
-bench_mod!(adpmask, AdaptHashMap2M);
+bench_mod!(adp0, AdaptHashMap0);
