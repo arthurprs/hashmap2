@@ -1094,13 +1094,12 @@ impl<K, V> Iterator for IntoIter<K, V> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = self.table.size();
-        (size, Some(size))
+        self.iter.size_hint()
     }
 }
 impl<K, V> ExactSizeIterator for IntoIter<K, V> {
     fn len(&self) -> usize {
-        self.table.size()
+        self.iter().len()
     }
 }
 
@@ -1119,13 +1118,12 @@ impl<'a, K, V> Iterator for Drain<'a, K, V> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = unsafe { (**self.table).size() };
-        (size, Some(size))
+        self.iter.size_hint()
     }
 }
 impl<'a, K, V> ExactSizeIterator for Drain<'a, K, V> {
     fn len(&self) -> usize {
-        unsafe { (**self.table).size() }
+        self.iter.len()
     }
 }
 
@@ -1147,13 +1145,15 @@ impl<K: Clone, V: Clone> Clone for RawTable<K, V> {
                 *new_buckets.hash() = *buckets.hash();
                 if *new_buckets.hash() != EMPTY_BUCKET {
                     let pair_ptr = buckets.pair();
-                    *new_buckets.pair() = ((*pair_ptr).0.clone(), (*pair_ptr).1.clone())
+                    let kv = ((*pair_ptr).0.clone(), (*pair_ptr).1.clone());
+                    ptr::write(new_buckets.pair(), kv);
                 }
                 buckets.idx += 1;
                 new_buckets.idx += 1;
             }
 
             new_ht.size = self.size();
+
             new_ht
         }
     }
