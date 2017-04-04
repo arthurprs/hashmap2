@@ -1,4 +1,7 @@
 #![feature(
+    pub_restricted,
+    placement_new_protocol,
+    placement_in_syntax,
     alloc,
     core_intrinsics,
     generic_param_attrs,
